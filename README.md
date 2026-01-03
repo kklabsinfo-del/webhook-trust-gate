@@ -10,7 +10,7 @@
 
 **Verified, deduplicated, auditable webhook processing for GitHub Actions.**
 
-The Webhook Trust Gate turns incoming webhooks from Stripe and Razorpay into a trusted, normalized, and provable source of truth inside your CI/CD workflows. Once integrated, it becomes structurally unavoidable, ensuring downstream steps cannot execute without verified webhooks.
+The Webhook Trust Gate turns incoming webhooks from Stripe and Razorpay into a trusted, normalized, and provable source of truth inside your CI/CD workflows.
 
 ---
 
@@ -26,7 +26,60 @@ The Webhook Trust Gate turns incoming webhooks from Stripe and Razorpay into a t
 
 ---
 
-## 📦 Installation
+## 💼 Enterprise Solutions
+
+**Processing 50k+ webhooks per month? Need compliance support?**
+
+We offer enterprise packages with:
+
+✅ **Custom SLA** (4-hour critical response time)  
+✅ **Dedicated Support Channel** (Slack/Teams)  
+✅ **Custom Provider Integrations** (PayPal, Paddle, Shopify, etc.)  
+✅ **Multi-Region Ledger Replication**  
+✅ **Compliance Reports** (SOC2, ISO27001, PCI-DSS ready)  
+✅ **Real-Time Alerting** (PagerDuty, OpsGenie integration)  
+✅ **On-Site Training Workshops**  
+✅ **Architecture Consulting**  
+✅ **White-Glove Migration** from existing systems  
+
+### Pricing
+
+**Enterprise tier starts at $2,500/month**
+
+Includes:
+- Priority support with guaranteed SLA
+- Monthly consulting calls
+- Custom feature development
+- Compliance audit assistance
+- Volume discounts available for 500k+ webhooks/month
+
+### ROI: Save $40k+ per year
+
+**Without Webhook Trust Gate:**
+- Custom development: $18,000
+- Audit preparation: $18,000
+- Infrastructure costs: $6,000
+- **Total: $42,000/year**
+
+**With Enterprise Tier:**
+- $30,000/year (annual contract)
+- **Net savings: $12,000/year**
+- Plus: Faster time-to-market, reduced audit friction
+
+---
+
+### 📞 Contact Enterprise Sales
+
+**Ready to discuss your needs?**
+
+📧 **Email:** kklabsinfo@gmail.com  
+💬 **Questions?** [Start a discussion](https://github.com/kklabsinfo-del/webhook-trust-gate/discussions)
+
+We typically respond within 24 hours.
+
+---
+
+## 📦 Installation (Free Tier)
 
 ### Recommended (Auto-updates to latest v1.x.x)
 ```yaml
@@ -38,6 +91,7 @@ The Webhook Trust Gate turns incoming webhooks from Stripe and Razorpay into a t
 - uses: kklabsinfo-del/webhook-trust-gate@v1.0.3
 ```
 
+[Continue with rest of README...]
 > **Note**: Using `@v1` is recommended as it automatically receives security patches and bug fixes while maintaining backward compatibility.
 
 ---
