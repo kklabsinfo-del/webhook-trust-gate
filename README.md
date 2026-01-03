@@ -524,3 +524,9 @@ If this project helped you, please consider giving it a ⭐ on GitHub!
 ---
 
 **Built with ❤️ for secure, auditable webhook processing**
+
+## 💖 Support This Project
+
+If Webhook Trust Gate saves your team time, consider sponsoring:
+
+[Become a Sponsor](https://github.com/sponsors/kklabsinfo-del)
