@@ -1,0 +1,28 @@
+name: Test Webhook Trust Gate (Enterprise)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  trust-gate:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: webhook-ledger
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run build
+      - uses: ./
+        with:
+          provider: "stripe"
+          payload: '{"id":"evt_test_123","type":"payment_intent.succeeded","data":{"object":{}},"created":1670000000}'
+          signature: "t=1670000000,v1=abcd1234ef567890"
+          secret: "whsec_testsecret"
+          ledger_branch: "webhook-ledger"
