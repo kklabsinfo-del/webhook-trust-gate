@@ -14,6 +14,7 @@ function normalizeEvent(provider, payload) {
   switch (provider) {
     case "stripe":
       return {
+        provider: "stripe", // ← Added for consistency
         id: payload.id,
         type: payload.type,
         created: payload.created,
@@ -21,6 +22,7 @@ function normalizeEvent(provider, payload) {
       };
     case "razorpay":
       return {
+        provider: "razorpay", // ← Added for consistency
         id: payload.id || payload.entity,
         entity: payload.entity,
         amount: payload.amount,
@@ -36,7 +38,26 @@ function normalizeEvent(provider, payload) {
 // Ledger + Deduplication
 // ----------------------------
 const ledgerFile = path.join(process.cwd(), "ledger.log");
-const seenEvents = new Set();
+const dedupeDir = path.join(process.cwd(), ".webhook-dedupe");
+
+// Ensure dedupe directory exists
+if (!fs.existsSync(dedupeDir)) {
+  fs.mkdirSync(dedupeDir, { recursive: true });
+}
+
+function checkAndMarkEvent(eventId) {
+  const eventHash = crypto.createHash("sha256").update(eventId).digest("hex");
+  const markerFile = path.join(dedupeDir, eventHash);
+
+  // Check if we've seen this event before
+  if (fs.existsSync(markerFile)) {
+    return false; // Duplicate
+  }
+
+  // Mark as seen
+  fs.writeFileSync(markerFile, new Date().toISOString(), { encoding: "utf8" });
+  return true; // First time
+}
 
 function writeLedger(eventId, hash) {
   // Create ledger file if missing
@@ -46,7 +67,7 @@ function writeLedger(eventId, hash) {
   const line = `${timestamp} | ${eventId} | ${hash}\n`;
 
   fs.appendFileSync(ledgerFile, line, { encoding: "utf8" });
-  console.log(`Ledger entry written: ${line.trim()}`);
+  console.log(`✅ Ledger entry written: ${eventId}`);
 }
 
 // ----------------------------
@@ -116,12 +137,13 @@ for (const wh of webhooks) {
   const payload = wh.payload;
   const eventId = payload.id || payload.entity || `local_${Date.now()}`;
 
-  // Deduplication
-  if (seenEvents.has(eventId)) {
-    console.log(`Duplicate webhook detected, skipping: ${eventId}`);
-    continue;
+  // Deduplication check
+  const firstSeen = checkAndMarkEvent(eventId);
+  if (!firstSeen) {
+    console.log(`🔴 Duplicate webhook detected, BLOCKED: ${eventId}`);
+    console.log("----------------------------\n");
+    continue; // ← Skip ledger write for duplicates
   }
-  seenEvents.add(eventId);
 
   // Normalization
   const normalized = normalizeEvent(provider, payload);
@@ -129,11 +151,11 @@ for (const wh of webhooks) {
   // SHA-256 hash
   const eventHash = hashEvent(normalized);
 
-  // Write ledger
+  // Write ledger (only for first occurrence)
   writeLedger(eventId, eventHash);
 
   // Output summary
-  console.log(`Processed event: ${eventId}`);
+  console.log(`Event ID     : ${eventId}`);
   console.log(`SHA-256 hash : ${eventHash}`);
   console.log(`Normalized   : ${JSON.stringify(normalized)}`);
   console.log("----------------------------\n");
@@ -143,4 +165,16 @@ for (const wh of webhooks) {
 // Final Ledger
 // ----------------------------
 console.log("\n=== Final Ledger Content ===");
-console.log(fs.readFileSync(ledgerFile, "utf-8"));
+const ledgerContent = fs.readFileSync(ledgerFile, "utf-8");
+console.log(ledgerContent);
+
+// Count unique events
+const lines = ledgerContent.trim().split("\n").filter((l) => l);
+console.log(`\nTotal events in ledger: ${lines.length}`);
+
+// ----------------------------
+// Cleanup Instructions
+// ----------------------------
+console.log("\n💡 To reset the test environment:");
+console.log("   rm -rf ledger.log .webhook-dedupe");
+console.log("   (or manually delete these files/folders)\n");

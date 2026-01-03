@@ -1,3 +1,7 @@
+/**
+ * Normalizes webhook payloads from different providers into a consistent format.
+ * Always includes the 'provider' field for clarity in the ledger.
+ */
 export function normalizeEvent(provider: string, payload: any): any {
   switch (provider) {
     case "stripe":
@@ -14,6 +18,8 @@ export function normalizeEvent(provider: string, payload: any): any {
         id:
           payload?.payload?.payment?.entity?.id ||
           payload?.payload?.order?.entity?.id ||
+          payload.id ||
+          payload.entity ||
           "",
         event: payload.event,
         created_at: payload.created_at,
