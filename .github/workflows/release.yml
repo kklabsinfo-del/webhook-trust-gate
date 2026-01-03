@@ -1,0 +1,44 @@
+name: Webhook Trust Gate Production
+
+# Trigger on push to main branch or manual run
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  trust-gate:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: webhook-ledger
+      cancel-in-progress: false
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Node.js environment
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Step 4: Build TypeScript
+      - name: Build TypeScript
+        run: npm run build
+
+      # Step 5: Run the Action with production secrets
+      - name: Run Webhook Trust Gate
+        uses: ./
+        with:
+          provider: "stripe"  # or "razorpay"
+          payload: '{"id":"evt_prod_123","type":"payment_intent.succeeded","data":{"object":{}},"created":1670000000}'
+          signature: ${{ secrets.STRIPE_SIGNATURE }}
+          secret: ${{ secrets.STRIPE_SECRET }}
+          ledger_branch: "webhook-ledger"
