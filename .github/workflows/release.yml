@@ -1,44 +1,112 @@
-name: Webhook Trust Gate Production
+name: Create Release
 
-# Trigger on push to main branch or manual run
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.3
 
 jobs:
-  trust-gate:
+  build-and-release:
     runs-on: ubuntu-latest
-    concurrency:
-      group: webhook-ledger
-      cancel-in-progress: false
+    permissions:
+      contents: write  # Required to create releases
 
     steps:
-      # Step 1: Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-      # Step 2: Set up Node.js environment
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
-      # Step 3: Install dependencies
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      # Step 4: Build TypeScript
       - name: Build TypeScript
         run: npm run build
 
-      # Step 5: Run the Action with production secrets
-      - name: Run Webhook Trust Gate
-        uses: ./
+      - name: Verify dist/ is committed
+        run: |
+          if [ -z "$(git status dist --porcelain)" ]; then
+            echo "✅ dist/ is up to date"
+          else
+            echo "❌ dist/ has uncommitted changes"
+            git status dist
+            exit 1
+          fi
+
+      - name: Extract version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          if [ -f CHANGELOG.md ]; then
+            # Extract section for this version
+            CHANGELOG=$(sed -n "/## \[${VERSION#v}\]/,/## \[/p" CHANGELOG.md | sed '$d')
+            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGELOG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "CHANGELOG=Release $VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          provider: "stripe"  # or "razorpay"
-          payload: '{"id":"evt_prod_123","type":"payment_intent.succeeded","data":{"object":{}},"created":1670000000}'
-          signature: ${{ secrets.STRIPE_SIGNATURE }}
-          secret: ${{ secrets.STRIPE_SECRET }}
-          ledger_branch: "webhook-ledger"
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## Webhook Trust Gate ${{ steps.get_version.outputs.VERSION }}
+
+            ${{ steps.changelog.outputs.CHANGELOG }}
+
+            ### Installation
+```yaml
+            - uses: kklabsinfo-del/webhook-trust-gate@${{ steps.get_version.outputs.VERSION }}
+```
+
+            Or use the major version for automatic updates:
+```yaml
+            - uses: kklabsinfo-del/webhook-trust-gate@v1
+```
+
+            ### Documentation
+            - [README](https://github.com/kklabsinfo-del/webhook-trust-gate#readme)
+            - [Full Changelog](https://github.com/kklabsinfo-del/webhook-trust-gate/releases)
+
+          draft: false
+          prerelease: false
+
+  update-major-tag:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          MAJOR_VERSION=$(echo $VERSION | cut -d. -f1)
+          echo "MAJOR=v$MAJOR_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update major version tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -fa ${{ steps.version.outputs.MAJOR }} -m "Update ${{ steps.version.outputs.MAJOR }} to ${{ github.ref_name }}"
+          git push origin ${{ steps.version.outputs.MAJOR }} --force
