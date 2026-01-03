@@ -1,9 +1,11 @@
-name: "Webhook Trust Gate (Enterprise)"
-description: "A GitHub Action to securely verify Stripe & Razorpay webhooks and maintain an immutable ledger of events."
-author: "kklabsinfo-del"
-runs:
-  using: "node16"
-  main: "dist/index.js"
+name: "Webhook Trust Gate"
+description: "Verified, deduplicated, auditable webhook processing for Stripe & Razorpay with tamper-evident Git ledger"
+author: "your-github-username"
+
+branding:
+  icon: "shield"
+  color: "blue"
+
 inputs:
   provider:
     description: "Webhook provider (stripe or razorpay)"
@@ -15,9 +17,25 @@ inputs:
     description: "Webhook signature header"
     required: true
   secret:
-    description: "Webhook secret (from Stripe or Razorpay)"
+    description: "Webhook secret (from provider)"
     required: true
   ledger_branch:
     description: "Git branch to store the ledger"
     required: false
     default: "webhook-ledger"
+  skip_signature:
+    description: "Skip signature verification (for local testing)"
+    required: false
+    default: "false"
+
+outputs:
+  event_id:
+    description: "Provider-native unique event ID"
+  event_hash:
+    description: "SHA-256 hash of normalized event"
+  normalized_event:
+    description: "JSON of the normalized event"
+
+runs:
+  using: "node20"
+  main: "dist/index.js"
