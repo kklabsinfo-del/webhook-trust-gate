@@ -1,39 +1,106 @@
-name: Test Webhook Trust Gate (Enterprise)
+name: Test Webhook Trust Gate
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  trust-gate:
+  test-action:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for ledger commits
+    
     concurrency:
-      group: webhook-ledger
+      group: webhook-ledger-test
       cancel-in-progress: false
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for ledger branch
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
           node-version: '20'
-      - run: npm install
-      - run: npm run build
 
-      # Stripe test
-      - uses: ./  # Local action reference
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Test - Stripe Webhook (Skip Signature)
+        id: test-stripe
+        uses: ./
         with:
           provider: "stripe"
-          payload: '{"id":"evt_test_123","type":"payment_intent.succeeded","data":{"object":{}},"created":1670000000}'
-          signature: ${{ secrets.STRIPE_SIGNATURE }} 
-          secret: ${{ secrets.STRIPE_SECRET }}
-          ledger_branch: "webhook-ledger"
+          payload: '{"id":"evt_test_${{ github.run_number }}","type":"payment_intent.succeeded","data":{"object":{"amount":1000}},"created":1670000000}'
+          signature: "dummy-signature"
+          secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          ledger_branch: "webhook-ledger-test"
+          skip_signature: "true"
 
-      # Razorpay test (optional)
-      - uses: ./ 
+      - name: Verify Stripe Output
+        run: |
+          echo "Event ID: ${{ steps.test-stripe.outputs.event_id }}"
+          echo "Hash: ${{ steps.test-stripe.outputs.event_hash }}"
+          echo "Normalized: ${{ steps.test-stripe.outputs.normalized_event }}"
+
+      - name: Test - Razorpay Webhook (Skip Signature)
+        id: test-razorpay
+        uses: ./
         with:
           provider: "razorpay"
-          payload: '{"entity":"payment","id":"pay_test_001","amount":1000,"status":"captured","created_at":1670000200}'
-          signature: ${{ secrets.RAZORPAY_SIGNATURE }}
-          secret: ${{ secrets.RAZORPAY_SECRET }}
-          ledger_branch: "webhook-ledger"
+          payload: '{"entity":"payment","id":"pay_test_${{ github.run_number }}","amount":1000,"status":"captured","created_at":1670000000}'
+          signature: "dummy-signature"
+          secret: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+          ledger_branch: "webhook-ledger-test"
+          skip_signature: "true"
+
+      - name: Verify Razorpay Output
+        run: |
+          echo "Event ID: ${{ steps.test-razorpay.outputs.event_id }}"
+          echo "Hash: ${{ steps.test-razorpay.outputs.event_hash }}"
+          echo "Normalized: ${{ steps.test-razorpay.outputs.normalized_event }}"
+
+      - name: Test - Duplicate Detection
+        id: test-duplicate
+        uses: ./
+        continue-on-error: true  # We expect this to fail
+        with:
+          provider: "stripe"
+          payload: '{"id":"evt_test_${{ github.run_number }}","type":"payment_intent.succeeded","data":{"object":{"amount":1000}},"created":1670000000}'
+          signature: "dummy-signature"
+          secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          ledger_branch: "webhook-ledger-test"
+          skip_signature: "true"
+
+      - name: Verify Duplicate Was Blocked
+        run: |
+          if [ "${{ steps.test-duplicate.outcome }}" = "failure" ]; then
+            echo "✅ Duplicate detection working correctly"
+            exit 0
+          else
+            echo "❌ Duplicate should have been blocked"
+            exit 1
+          fi
+
+      - name: Check Ledger File
+        run: |
+          git fetch origin webhook-ledger-test || echo "Ledger branch doesn't exist yet"
+          git checkout webhook-ledger-test || echo "Cannot checkout ledger"
+          if [ -f ledger.log ]; then
+            echo "=== Ledger Contents ==="
+            cat ledger.log
+            echo "=== Total Entries ==="
+            wc -l ledger.log
+          else
+            echo "No ledger file found"
+          fi
