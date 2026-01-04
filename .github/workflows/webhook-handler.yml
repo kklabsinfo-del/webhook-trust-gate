@@ -1,0 +1,69 @@
+name: Webhook Handler (Production)
+
+# This workflow is triggered by external webhooks via repository_dispatch
+on:
+  repository_dispatch:
+    types: [stripe_webhook, razorpay_webhook]
+
+jobs:
+  process-webhook:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for ledger commits
+    
+    concurrency:
+      group: webhook-ledger-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Determine Provider
+        id: provider
+        run: |
+          if [ "${{ github.event.action }}" = "stripe_webhook" ]; then
+            echo "name=stripe" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.action }}" = "razorpay_webhook" ]; then
+            echo "name=razorpay" >> $GITHUB_OUTPUT
+          else
+            echo "Unknown webhook type"
+            exit 1
+          fi
+
+      - name: Verify and Log Webhook
+        id: verify
+        uses: kklabsinfo-del/webhook-trust-gate@v1
+        with:
+          provider: ${{ steps.provider.outputs.name }}
+          payload: ${{ toJSON(github.event.client_payload.body) }}
+          signature: ${{ github.event.client_payload.signature }}
+          secret: ${{ steps.provider.outputs.name == 'stripe' && secrets.STRIPE_WEBHOOK_SECRET || secrets.RAZORPAY_WEBHOOK_SECRET }}
+          ledger_branch: "webhook-ledger"
+
+      - name: Process Verified Webhook
+        run: |
+          echo "✅ Webhook verified successfully"
+          echo "Event ID: ${{ steps.verify.outputs.event_id }}"
+          echo "Hash: ${{ steps.verify.outputs.event_hash }}"
+          
+          # Parse the normalized event
+          EVENT='${{ steps.verify.outputs.normalized_event }}'
+          echo "Normalized Event: $EVENT"
+          
+          # Add your business logic here
+          # Example: Update database, send notifications, etc.
+          
+      - name: Notify on Success
+        if: success()
+        run: |
+          echo "Webhook processed successfully"
+          # Add Slack/email notification here
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "⚠️ Webhook processing failed"
+          # Add alert notification here
