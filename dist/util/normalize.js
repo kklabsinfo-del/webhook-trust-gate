@@ -1,0 +1,33 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.normalizeEvent = normalizeEvent;
+/**
+ * Normalizes webhook payloads from different providers into a consistent format.
+ * Always includes the 'provider' field for clarity in the ledger.
+ */
+function normalizeEvent(provider, payload) {
+    switch (provider) {
+        case "stripe":
+            return {
+                provider: "stripe",
+                id: payload.id,
+                type: payload.type,
+                created: payload.created,
+                data: payload.data?.object ?? {},
+            };
+        case "razorpay":
+            return {
+                provider: "razorpay",
+                id: payload?.payload?.payment?.entity?.id ||
+                    payload?.payload?.order?.entity?.id ||
+                    payload.id ||
+                    payload.entity ||
+                    "",
+                event: payload.event,
+                created_at: payload.created_at,
+                data: payload.payload ?? {},
+            };
+        default:
+            throw new Error(`Unsupported provider for normalization: ${provider}`);
+    }
+}

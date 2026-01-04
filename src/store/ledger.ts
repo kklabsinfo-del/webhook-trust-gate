@@ -35,7 +35,7 @@ export async function writeLedger(entry: LedgerEntry): Promise<void> {
   }
 
   // Production: Git commands with concurrency handling
-  await commitAndPushWithRetry(entry.branch, fileName, entry.eventId);
+  await commitAndPushWithRetry(entry.branch, fileName, entry.eventId, ledgerPath);
 }
 
 /**
@@ -46,6 +46,7 @@ async function commitAndPushWithRetry(
   branch: string,
   fileName: string,
   eventId: string,
+  ledgerPath: string,
   maxRetries: number = 3
 ): Promise<void> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -80,6 +81,10 @@ async function commitAndPushWithRetry(
       if (checkoutResult !== 0) {
         await exec.exec("git", ["checkout", "--orphan", branch]);
         await exec.exec("git", ["rm", "-rf", "."], { ignoreReturnCode: true });
+        
+        // Recreate the ledger file (it was deleted by rm -rf)
+        const line = fs.readFileSync(ledgerPath, "utf8");
+        fs.writeFileSync(fileName, line, { encoding: "utf8" });
       }
 
       // Stage the ledger file
