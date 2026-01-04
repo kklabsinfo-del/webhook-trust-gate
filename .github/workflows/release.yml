@@ -42,20 +42,6 @@ jobs:
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Extract changelog for this version
-        id: changelog
-        run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-          if [ -f CHANGELOG.md ]; then
-            # Extract section for this version
-            CHANGELOG=$(sed -n "/## \[${VERSION#v}\]/,/## \[/p" CHANGELOG.md | sed '$d')
-            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-            echo "$CHANGELOG" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "CHANGELOG=Release $VERSION" >> $GITHUB_OUTPUT
-          fi
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         env:
@@ -66,17 +52,13 @@ jobs:
           body: |
             ## Webhook Trust Gate ${{ steps.get_version.outputs.VERSION }}
 
-            ${{ steps.changelog.outputs.CHANGELOG }}
-
             ### Installation
-```yaml
+            
+            Use this version:
             - uses: kklabsinfo-del/webhook-trust-gate@${{ steps.get_version.outputs.VERSION }}
-```
-
+            
             Or use the major version for automatic updates:
-```yaml
             - uses: kklabsinfo-del/webhook-trust-gate@v1
-```
 
             ### Documentation
             - [README](https://github.com/kklabsinfo-del/webhook-trust-gate#readme)
